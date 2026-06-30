@@ -518,7 +518,10 @@ const resetWalletConnectProvider = () => {
         closeWalletConnectModal(instance).catch(() => { })
         if (typeof instance.disconnect === 'function') {
             try {
-                instance.disconnect()
+                const res = instance.disconnect()
+                if (res && typeof res.catch === 'function') {
+                    res.catch(() => { })
+                }
             } catch (e) { }
         }
     }
@@ -722,7 +725,7 @@ Vue.prototype.getAccount = async function () {
                 ))
             }
             break
-        case 'trezor':
+        case 'trezor': {
             const trezorPayload = Vue.prototype.trezorPayload || localStorage.get('trezorPayload')
             const trezorOffset = Number(localStorage.get('offset') || 0)
             if (!trezorPayload) {
@@ -731,6 +734,7 @@ Vue.prototype.getAccount = async function () {
             account = Vue.prototype.HDWalletCreate(trezorPayload, trezorOffset)
             localStorage.set('trezorPayload', { xpub: trezorPayload.xpub })
             break
+        }
         default:
             break
     }
@@ -842,18 +846,22 @@ Vue.prototype.getBalanceSafe = async function (account, contextName = '') {
 
     let balanceWei = '0'
     let balanceFromReadWeb3 = '0'
+    let web3Success = false
+    let readWeb3Success = false
 
     // Try current provider
     if (this.web3) {
         try {
             balanceWei = await this.web3.eth.getBalance(rpcAddr)
+            web3Success = true
         } catch (e) { }
 
         try {
             const balanceWeiXdc = await this.web3.eth.getBalance(xdcAddr)
-            if (new BigNumber(balanceWei).isZero() && !new BigNumber(balanceWeiXdc).isZero()) {
+            if ((new BigNumber(balanceWei).isZero() || !web3Success) && !new BigNumber(balanceWeiXdc).isZero()) {
                 balanceWei = balanceWeiXdc
             }
+            web3Success = true
         } catch (e) { }
     }
 
@@ -862,14 +870,20 @@ Vue.prototype.getBalanceSafe = async function (account, contextName = '') {
     if (readWeb3) {
         try {
             balanceFromReadWeb3 = await readWeb3.eth.getBalance(rpcAddr)
+            readWeb3Success = true
         } catch (e) { }
 
         try {
             const balanceFromReadWeb3Xdc = await readWeb3.eth.getBalance(xdcAddr)
-            if (new BigNumber(balanceFromReadWeb3).isZero() && !new BigNumber(balanceFromReadWeb3Xdc).isZero()) {
+            if ((new BigNumber(balanceFromReadWeb3).isZero() || !readWeb3Success) && !new BigNumber(balanceFromReadWeb3Xdc).isZero()) {
                 balanceFromReadWeb3 = balanceFromReadWeb3Xdc
             }
+            readWeb3Success = true
         } catch (e) { }
+    }
+
+    if (!web3Success && !readWeb3Success) {
+        throw new Error('Failed to fetch balance from all available RPC nodes.')
     }
 
     // Return the fallback balance if it is non-zero and the wallet provider returned zero

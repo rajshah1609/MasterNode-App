@@ -150,7 +150,7 @@ async function watchValidator () {
                     })
 
                     if (candidateInfor) {
-                        await updateCandidateInfo(candidate, candidateInfor?.latestSignedBlock, candidateInfor?.status)
+                        await updateCandidateInfo(candidate, candidateInfor?.latestSignedBlock, candidateInfor?.status, candidateInfor?.owner)
                     }
                 }
             })
@@ -168,7 +168,7 @@ async function watchValidator () {
     }
 }
 
-async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prevStatus) {
+async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prevStatus, prevOwner) {
     try {
         // let capacity = await validator.methods.getCandidateCap(candidate).call()
         let capacity = 10000000000000000000000000
@@ -198,10 +198,10 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
                 candidate: candidate
             }) || {}
 
-            let newStatus = candateInDB.status || 'STANDBY'
+            let newStatus = prevStatus || 'STANDBY'
             if (status !== null) {
                 newStatus = (status)
-                    ? ((candateInDB.status === 'RESIGNED') ? 'STANDBY' : (prevStatus || 'STANDBY'))
+                    ? ((prevStatus === 'RESIGNED') ? 'STANDBY' : (prevStatus || 'STANDBY'))
                     : 'RESIGNED'
             }
 
@@ -216,7 +216,7 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
                     capacity: String(capacity),
                     capacityNumber: (new BigNumber(capacity)).div(1e18).toString(10),
                     status: newStatus,
-                    owner: owner || candateInDB.owner
+                    owner: owner || prevOwner
                 },
                 $setOnInsert: {
                     nodeId: candidate.replace('xdc', '')
@@ -371,7 +371,7 @@ async function updateSignerPenAndStatus () {
 
         let candidateAddressData
         try {
-            candidateAddressData = await axios.post(config.get('blockchain.rpc'), data)
+            candidateAddressData = await axios.post(config.get('blockchain.rpc'), data, { timeout: 10000 })
         } catch (rpcErr) {
             logger.error('RPC Error XDPoS_getMasternodesByNumber %s', rpcErr.message)
             return
@@ -383,6 +383,11 @@ async function updateSignerPenAndStatus () {
         }
 
         const { Masternodes: masterNodes, Penalty: slashNodes, Standbynodes: standByNodes } = candidateAddressData.data.result
+
+        if (!Array.isArray(masterNodes) || !Array.isArray(slashNodes) || !Array.isArray(standByNodes)) {
+            logger.error('RPC Error invalid array data returned from XDPoS_getMasternodesByNumber')
+            return
+        }
 
         let masterNodeCount = 0
         let standByNodeCount = 0

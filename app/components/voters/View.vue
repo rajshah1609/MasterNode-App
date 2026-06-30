@@ -672,10 +672,11 @@ export default {
 
                 if (typeof self.web3 !== 'undefined') {
                     self.getBalanceSafeCallback(voter, 'voters/View.vue - created', function (a, b) {
-                        self.balance = new BigNumber(b).div(10 ** 18).toNumber()
                         if (a) {
-                            throw Error(a)
+                            console.log('got an error', a)
+                            return
                         }
+                        self.balance = new BigNumber(b).div(10 ** 18).toNumber()
                     })
                 }
 
