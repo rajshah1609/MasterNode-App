@@ -263,16 +263,27 @@ router.post('/verifyTx', [
 
         web3.eth.sendSignedTransaction(serializedTx, async (error, hash) => {
             if (error) {
+                console.error('[sendSignedTransaction] Error occurred:', error)
+                console.log(`[sendSignedTransaction] signedAddress: ${signedAddress}, action: ${action}, amount: ${amount}`)
                 if (action === 'vote') {
                     try {
-                        const balance = await web3.eth.getBalance(signedAddress)
+                        const xdcAddress = 'xdc' + signedAddress.substring(2)
+                        const balance0x = await web3.eth.getBalance(signedAddress)
+                        const balanceXdc = await web3.eth.getBalance(xdcAddress)
+
+                        console.log(`[sendSignedTransaction] getBalance(0x): ${balance0x} Wei (${new BigNumber(balance0x).div(10 ** 18).toString(10)} XDC)`)
+                        console.log(`[sendSignedTransaction] getBalance(xdc): ${balanceXdc} Wei (${new BigNumber(balanceXdc).div(10 ** 18).toString(10)} XDC)`)
+
+                        const balance = balance0x || balanceXdc
                         if (balance) {
                             const convertedBalanc = new BigNumber(balance).div(10 ** 18)
                             const convertedAmount = new BigNumber(amount)
 
                             if (convertedBalanc.isLessThan(convertedAmount)) {
+                                console.error(`[sendSignedTransaction] Not enough XDC. Balance ${convertedBalanc.toString(10)} < Amount ${convertedAmount.toString(10)}`)
                                 throw Error('Not enough XDC')
                             } else {
+                                console.error('[sendSignedTransaction] Balance is sufficient, but transaction failed for another reason')
                                 throw Error('Something went wrong')
                             }
                         }

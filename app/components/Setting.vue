@@ -610,7 +610,7 @@ export default {
                     (self.getHttpWeb3 && self.getHttpWeb3(self.chainConfig.rpc || self.networks.rpc)) ||
                     self.web3
                 if (balanceWeb3) {
-                    balanceWeb3.eth.getBalance(rpcAccount).then(balanceBN => {
+                    self.getBalanceSafe(rpcAccount, 'Setting.vue - login/save').then(balanceBN => {
                         self.balance = new BigNumber(balanceBN).div(10 ** 18)
                     }).catch(e => {
                         console.log(e)
@@ -1016,7 +1016,7 @@ export default {
                 })
             }
 
-            self.web3.eth.getBalance(self.address, function (a, b) {
+            self.getBalanceSafeCallback(self.address, 'Setting.vue - setupProvider', function (a, b) {
                 self.balance = new BigNumber(b).div(10 ** 18).toFormat()
                 if (a) {
                     console.log('got an error', a)

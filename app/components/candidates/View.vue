@@ -877,7 +877,7 @@ export default {
 
                 if (self.web3) {
                     let youVoted = new BigNumber(0)
-                    self.web3.eth.getBalance(self.candidate.address, function (a, b) {
+                    self.getBalanceSafeCallback(self.candidate.address, 'candidates/View.vue - created', function (a, b) {
                         self.candidate.balance = new BigNumber(b).div(10 ** 18)
                         if (a) {
                             console.log('got an error', a)

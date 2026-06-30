@@ -340,7 +340,7 @@ export default {
                     this.coinbaseError = true
                 } else {
                     // Check balance
-                    const balanc = await this.web3.eth.getBalance(this.account)
+                    const balanc = await this.getBalanceSafe(this.account, 'Apply.vue - validate')
                     this.balance = new BigNumber(balanc).div(10 ** 18)
                     const convertedAmount = new BigNumber(this.applyValue)
 
@@ -667,20 +667,8 @@ export default {
 
                         const gas = Math.ceil(Number(estimatedGas) * 1.2)
 
-                        const balanceWei = await self.web3.eth.getBalance(account)
+                        const balanceWei = await self.getBalanceSafe(account, 'Apply.vue - uploadKYC')
                         const estimatedFeeWei = new BigNumber(gas).multipliedBy(self.gasPrice)
-
-                        /* console.log('KYC upload tx debug:', {
-                            network,
-                            signerAccount,
-                            providerAccounts,
-                            txFrom: account,
-                            balance: new BigNumber(balanceWei).div(10 ** 18).toString(10),
-                            gasPrice: self.gasPrice,
-                            estimatedGas,
-                            gas,
-                            estimatedFee: estimatedFeeWei.div(10 ** 18).toString(10)
-                        }) */
 
                         if (new BigNumber(balanceWei).isLessThan(estimatedFeeWei)) {
                             throw new Error(

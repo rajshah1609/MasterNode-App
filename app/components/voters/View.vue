@@ -671,7 +671,7 @@ export default {
                 self.totalRows = candidates.data.total
 
                 if (typeof self.web3 !== 'undefined') {
-                    self.web3.eth.getBalance(voter, function (a, b) {
+                    self.getBalanceSafeCallback(voter, 'voters/View.vue - created', function (a, b) {
                         self.balance = new BigNumber(b).div(10 ** 18).toNumber()
                         if (a) {
                             throw Error(a)

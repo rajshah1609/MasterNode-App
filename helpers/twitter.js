@@ -25,11 +25,13 @@ const twitter = new Twitter({
 
 const TwitterHelper = {
     tweetNewMN: async (owner, candidate, amount, txHash) => {
-        // amount = new BigNumber(amount)
-        // amount = amount.dividedBy(10 ** 18).toNumber()
+        let baseUrl = config.get('baseUrl')
+        if (!baseUrl.endsWith('/')) {
+            baseUrl += '/'
+        }
         const msg = owner.substr(0, 8) + ' has proposed a new candidate ' + candidate.substr(0, 8) +
             '\nCapacity: ' + amount + ' $XDC' +
-            '\nXDC Network Governance DApp:  https://master.xinfin.network/candidate/' + candidate +
+            '\nXDC Network Governance DApp:  ' + baseUrl + 'candidate/' + candidate +
             '\nTransaction: https://scan.xinfin.network/txs/' + txHash
 
         twitter.post('statuses/update', { status: msg },

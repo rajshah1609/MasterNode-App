@@ -230,7 +230,7 @@ export default {
             }
             self.voter = store.get('address') ||
                 self.$store.state.address || await self.getAccount()
-            self.web3.eth.getBalance(self.voter, function (a, b) {
+            self.getBalanceSafeCallback(self.voter, 'Voting.vue - created', function (a, b) {
                 self.balance = new BigNumber(b).div(10 ** 18)
                 if (a) {
                     console.log('got an error', a)
@@ -307,7 +307,7 @@ export default {
                     self.NetworkProvider === 'trezor') {
                     // check if network provider is hardware wallet
                     // sign transaction using hardwarewallet before sending to chain
-
+                    //
                     // https://bit.ly/2KEXzQe
                     // signing and sending processes
                     //
@@ -316,7 +316,6 @@ export default {
                     // sign transaction with function and parameter to get signature
                     // attach txParams and signature then sendSignedTransaction
                     let nonce = await self.web3.eth.getTransactionCount(account)
-                    // let dataTx = contract.vote.request(self.candidate).params[0]
                     let data = await contract.methods.vote(self.candidate).encodeABI()
                     const dataTx = {
                         data,

@@ -172,13 +172,20 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
     try {
         // let capacity = await validator.methods.getCandidateCap(candidate).call()
         let capacity = 10000000000000000000000000
-        let owner = (await validator.methods.getCandidateOwner(candidate).call() || '').toLowerCase()
-        let status = await validator.methods.isCandidate(candidate).call()
+        let owner = ''
+        let status = null
+
+        try {
+            owner = (await validator.methods.getCandidateOwner(candidate).call() || '').toLowerCase()
+            status = await validator.methods.isCandidate(candidate).call()
+        } catch (rpcErr) {
+            logger.error('RPC Error in updateCandidateInfo %s', rpcErr.message)
+        }
 
         if (candidate.substring(0, 2) === '0x') {
             candidate = 'xdc' + candidate.substring(2)
         }
-        if (owner.substring(0, 2) === '0x') {
+        if (owner && owner.substring(0, 2) === '0x') {
             owner = 'xdc' + owner.substring(2)
         }
 
@@ -191,9 +198,13 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
                 candidate: candidate
             }) || {}
 
-            status = (status)
-                ? ((candateInDB.status === 'RESIGNED') ? 'STANDBY' : (prevStatus || 'STANDBY'))
-                : 'RESIGNED'
+            let newStatus = candateInDB.status || 'STANDBY'
+            if (status !== null) {
+                newStatus = (status)
+                    ? ((candateInDB.status === 'RESIGNED') ? 'STANDBY' : (prevStatus || 'STANDBY'))
+                    : 'RESIGNED'
+            }
+
             result = await db.Candidate.findOneAndUpdate({
                 smartContractAddress: config.get('blockchain.validatorAddress'),
                 candidate: candidate
@@ -204,8 +215,8 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
                     candidate: candidate,
                     capacity: String(capacity),
                     capacityNumber: (new BigNumber(capacity)).div(1e18).toString(10),
-                    status: status,
-                    owner: owner
+                    status: newStatus,
+                    owner: owner || candateInDB.owner
                 },
                 $setOnInsert: {
                     nodeId: candidate.replace('xdc', '')
@@ -226,7 +237,14 @@ async function updateCandidateInfo (candidate, storedLatestSignedBlock = 0, prev
 
 async function updateVoterCap (candidate, voter) {
     try {
-        let capacity = await validator.methods.getVoterCap(candidate, voter).call()
+        let capacity = 0
+        try {
+            capacity = await validator.methods.getVoterCap(candidate, voter).call()
+        } catch (rpcErr) {
+            logger.error('RPC Error in getVoterCap %s', rpcErr.message)
+            return
+        }
+
         if (voter.substring(0, 2) === '0x') {
             voter = 'xdc' + voter.substring(2)
         }
@@ -255,7 +273,14 @@ async function updateVoterCap (candidate, voter) {
 // Get current candates
 async function getCurrentCandidates () {
     try {
-        let candidates = await validator.methods.getCandidates().call()
+        let candidates = []
+        try {
+            candidates = await validator.methods.getCandidates().call()
+        } catch (rpcErr) {
+            logger.error('RPC Error in getCandidates %s', rpcErr.message)
+            return
+        }
+
         const prevCandidates = await db.Candidate.find({})
         await db.Candidate.remove({})
         let map = candidates.map(async (candidate) => {
@@ -269,7 +294,14 @@ async function getCurrentCandidates () {
             }
 
             candidate = (candidate || '').toLowerCase()
-            let voters = await validator.methods.getVoters(candidate).call()
+
+            let voters = []
+            try {
+                voters = await validator.methods.getVoters(candidate).call()
+            } catch (rpcErr) {
+                logger.error('RPC Error in getVoters %s', rpcErr.message)
+            }
+
             let m = voters.map(v => {
                 v = (v || '').toLowerCase()
                 return updateVoterCap(candidate, v)
@@ -337,7 +369,19 @@ async function updateSignerPenAndStatus () {
             'id': config.get('blockchain.networkId')
         }
 
-        const candidateAddressData = await axios.post(config.get('blockchain.rpc'), data)
+        let candidateAddressData
+        try {
+            candidateAddressData = await axios.post(config.get('blockchain.rpc'), data)
+        } catch (rpcErr) {
+            logger.error('RPC Error XDPoS_getMasternodesByNumber %s', rpcErr.message)
+            return
+        }
+
+        if (!candidateAddressData.data || !candidateAddressData.data.result) {
+            logger.error('RPC Error invalid data returned from XDPoS_getMasternodesByNumber')
+            return
+        }
+
         const { Masternodes: masterNodes, Penalty: slashNodes, Standbynodes: standByNodes } = candidateAddressData.data.result
 
         let masterNodeCount = 0

@@ -99,10 +99,10 @@ async function isValidEIP1271Signature (account, message, signedMessage) {
 
         const msgHash = ethUtil.hashPersonalMessage(Buffer.from(message))
         const magicValue = '0x1626ba7e'
-        
+
         // signature may need normalization; preserve original for contracts
         const variants = [...new Set([signedMessage, ...signatureVariants(signedMessage)])]
-        
+
         for (const variant of variants) {
             const data = web3.eth.abi.encodeFunctionCall({
                 name: 'isValidSignature',

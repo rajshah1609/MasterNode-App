@@ -14,7 +14,7 @@ import { EthereumProvider } from '@walletconnect/ethereum-provider'
 // import XDCValidatorArtifacts from '../contracts/XDCValidator.json'
 import Toasted from 'vue-toasted'
 import axios from 'axios'
-// import BigNumber from 'bignumber.js'
+import BigNumber from 'bignumber.js'
 // import HighchartsVue from 'highcharts-vue'
 // import Highcharts from 'highcharts'
 // import stockInit from 'highcharts/modules/stock'
@@ -74,7 +74,7 @@ const getCurrencySymbolByHdPath = (path) => {
         return 'XDC'
     }
     if (getCoinTypeFromPath(path) === 60) {
-        return 'ETH'
+        return 'XDC'
     }
     return 'XDC'
 }
@@ -317,20 +317,20 @@ const pickLedgerTxFields = (txParams) => {
 
 const formatLedgerSignature = (signature) => {
     const formatted = {}
-    ;['v', 'r', 's'].forEach((key) => {
-        let val = signature[key]
-        if (val === undefined || val === null) {
-            return
-        }
-        if (typeof val === 'number') {
-            val = val.toString(16)
-        }
-        val = String(val).trim()
-        if (!val.startsWith('0x')) {
-            val = '0x' + val
-        }
-        formatted[key] = val
-    })
+        ;['v', 'r', 's'].forEach((key) => {
+            let val = signature[key]
+            if (val === undefined || val === null) {
+                return
+            }
+            if (typeof val === 'number') {
+                val = val.toString(16)
+            }
+            val = String(val).trim()
+            if (!val.startsWith('0x')) {
+                val = '0x' + val
+            }
+            formatted[key] = val
+        })
     return formatted
 }
 
@@ -414,20 +414,16 @@ Vue.use(Toasted, {
     position: 'bottom-right',
     theme: 'bubble',
     duration: 4000,
-    action : {
-        text : 'Dismiss',
-        onClick : (e, toastObject) => {
+    action: {
+        text: 'Dismiss',
+        onClick: (e, toastObject) => {
             toastObject.goAway(0)
         }
     },
     singleton: true
 })
 
-// set trezor's manifest
-TrezorConnect.manifest({
-    email: 'admin@xinfin.network',
-    appUrl: 'https://master.xinfin.network'
-})
+// Trezor manifest set dynamically during initialization below
 
 // stockInit(Highcharts)
 // Vue.use(HighchartsVue)
@@ -509,21 +505,21 @@ const closeWalletConnectModal = async (provider) => {
 }
 
 const scheduleWalletConnectModalClose = (provider) => {
-    const run = () => closeWalletConnectModal(provider).catch(() => {})
+    const run = () => closeWalletConnectModal(provider).catch(() => { })
     run()
-    ;[50, 200, 600].forEach((delay) => {
-        window.setTimeout(run, delay)
-    })
+        ;[50, 200, 600].forEach((delay) => {
+            window.setTimeout(run, delay)
+        })
 }
 
 const resetWalletConnectProvider = () => {
     const instance = walletConnectProviderInstance
     if (instance) {
-        closeWalletConnectModal(instance).catch(() => {})
+        closeWalletConnectModal(instance).catch(() => { })
         if (typeof instance.disconnect === 'function') {
             try {
                 instance.disconnect()
-            } catch (e) {}
+            } catch (e) { }
         }
     }
     walletConnectProviderInstance = null
@@ -538,9 +534,11 @@ const getWalletConnectProvider = async (showQrModal, blockchain) => {
         return walletConnectInitPromise
     }
 
-    const dappUrl = typeof window !== 'undefined'
-        ? window.location.origin
-        : 'https://master.xinfin.network'
+    const config = localStorage.get('configMaster')
+    let dappUrl = (config && config.baseUrl) || (typeof window !== 'undefined' ? window.location.origin : '')
+    if (dappUrl && dappUrl.endsWith('/')) {
+        dappUrl = dappUrl.slice(0, -1)
+    }
 
     const projectId = assertWalletConnectConfigured(blockchain)
 
@@ -549,7 +547,7 @@ const getWalletConnectProvider = async (showQrModal, blockchain) => {
         showQrModal: showQrModal,
         qrModalOptions: { themeMode: 'light' },
         chains: [50],
-        optionalChains: [1, 50],
+        optionalChains: [50],
         methods: ['eth_sendTransaction', 'personal_sign'],
         rpcMap: {
             [blockchain.networkId]: blockchain.rpc,
@@ -559,7 +557,7 @@ const getWalletConnectProvider = async (showQrModal, blockchain) => {
             name: 'XDC Network Governance Dapp',
             description: 'Providing a professional UI which allows coin-holders to stake for masternodes, decentralized governance and explore masternode performance statistics',
             url: dappUrl,
-            icons: ['https://master.xinfin.network/app/assets/img/logo.svg']
+            icons: [dappUrl.endsWith('/') ? dappUrl + 'app/assets/img/logo.svg' : dappUrl + '/app/assets/img/logo.svg']
         }
     }).then((provider) => {
         walletConnectProviderInstance = provider
@@ -580,7 +578,7 @@ Vue.prototype.resetWalletSession = function () {
     if (Vue.prototype.appEth && Vue.prototype.appEth.transport) {
         try {
             Vue.prototype.appEth.transport.close()
-        } catch (e) {}
+        } catch (e) { }
     }
     Vue.prototype.NetworkProvider = null
     Vue.prototype.web3 = null
@@ -673,68 +671,68 @@ Vue.prototype.getAccount = async function () {
     const wjs = Vue.prototype.web3
     let account
     switch (provider) {
-    case 'connect-wallet':
-        account = (await wjs.eth.getAccounts())[0]
-        break
-    case 'metamask':
-        if (window.ethereum) {
-            if (window.ethereum.request) {
-                await window.ethereum.request({ method: 'eth_requestAccounts' })
-            } else if (window.ethereum.enable) {
-                await window.ethereum.enable()
+        case 'connect-wallet':
+            account = (await wjs.eth.getAccounts())[0]
+            break
+        case 'metamask':
+            if (window.ethereum) {
+                if (window.ethereum.request) {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' })
+                } else if (window.ethereum.enable) {
+                    await window.ethereum.enable()
+                }
+            } else if (window.xdcchain && window.xdcchain.enable) {
+                await window.xdcchain.enable()
             }
-        } else if (window.xdcchain && window.xdcchain.enable) {
-            await window.xdcchain.enable()
-        }
-        account = (await wjs.eth.getAccounts())[0]
-        break
-    case 'xinpay':
-        // Request account access if needed - for metamask
-        if (window.xdcchain) {
-            await window.xdcchain.enable()
-        }
-        account = (await wjs.eth.getAccounts())[0]
-        break
-    case 'XDCwalletDapp':
-        account = (await wjs.eth.getAccounts())[0]
-        break
-    case 'XDCwallet':
-        account = this.$store.state.address
-        break
-    case 'custom':
-        account = (await wjs.eth.getAccounts())[0]
-        break
-    case 'ledger':
-        try {
-            const offset = Number(localStorage.get('offset') || 0)
-            const payload = Vue.prototype.ledgerPayload
+            account = (await wjs.eth.getAccounts())[0]
+            break
+        case 'xinpay':
+            // Request account access if needed - for metamask
+            if (window.xdcchain) {
+                await window.xdcchain.enable()
+            }
+            account = (await wjs.eth.getAccounts())[0]
+            break
+        case 'XDCwalletDapp':
+            account = (await wjs.eth.getAccounts())[0]
+            break
+        case 'XDCwallet':
+            account = this.$store.state.address
+            break
+        case 'custom':
+            account = (await wjs.eth.getAccounts())[0]
+            break
+        case 'ledger':
+            try {
+                const offset = Number(localStorage.get('offset') || 0)
+                const payload = Vue.prototype.ledgerPayload
 
-            if (payload && payload.publicKey) {
-                account = Vue.prototype.HDWalletCreate(payload, offset)
-            } else {
-                const path = getLedgerPath(offset)
-                await ensureLedgerEth(path)
-                const result = await ledgerGetAddress(Vue.prototype.appEth, path)
-                account = formatAddressByHdPath(result.address, getLedgerPath(offset))
+                if (payload && payload.publicKey) {
+                    account = Vue.prototype.HDWalletCreate(payload, offset)
+                } else {
+                    const path = getLedgerPath(offset)
+                    await ensureLedgerEth(path)
+                    const result = await ledgerGetAddress(Vue.prototype.appEth, path)
+                    account = formatAddressByHdPath(result.address, getLedgerPath(offset))
+                }
+            } catch (error) {
+                console.log(error)
+                throw formatLedgerError(error, getLedgerPath(
+                    Number(localStorage.get('offset') || 0)
+                ))
             }
-        } catch (error) {
-            console.log(error)
-            throw formatLedgerError(error, getLedgerPath(
-                Number(localStorage.get('offset') || 0)
-            ))
-        }
-        break
-    case 'trezor':
-        const trezorPayload = Vue.prototype.trezorPayload || localStorage.get('trezorPayload')
-        const trezorOffset = Number(localStorage.get('offset') || 0)
-        if (!trezorPayload) {
-            throw new Error('Trezor not unlocked. Please connect your device and try again.')
-        }
-        account = Vue.prototype.HDWalletCreate(trezorPayload, trezorOffset)
-        localStorage.set('trezorPayload', { xpub: trezorPayload.xpub })
-        break
-    default:
-        break
+            break
+        case 'trezor':
+            const trezorPayload = Vue.prototype.trezorPayload || localStorage.get('trezorPayload')
+            const trezorOffset = Number(localStorage.get('offset') || 0)
+            if (!trezorPayload) {
+                throw new Error('Trezor not unlocked. Please connect your device and try again.')
+            }
+            account = Vue.prototype.HDWalletCreate(trezorPayload, trezorOffset)
+            localStorage.set('trezorPayload', { xpub: trezorPayload.xpub })
+            break
+        default:
+            break
     }
     if (!account || account.length <= 0) {
         console.log(`Couldn't get any accounts! Make sure
@@ -837,6 +835,64 @@ Vue.prototype.HDWalletCreate = (payload, index) => {
 Vue.prototype.getHdBasePath = getHdBasePath
 Vue.prototype.toRpcAddress = toRpcAddress
 Vue.prototype.formatAddressByHdPath = formatAddressByHdPath
+
+Vue.prototype.getBalanceSafe = async function (account, contextName = '') {
+    const rpcAddr = this.toRpcAddress(account)
+    const xdcAddr = 'xdc' + rpcAddr.substring(2)
+
+    let balanceWei = '0'
+    let balanceFromReadWeb3 = '0'
+
+    // Try current provider
+    if (this.web3) {
+        try {
+            balanceWei = await this.web3.eth.getBalance(rpcAddr)
+        } catch (e) { }
+
+        try {
+            const balanceWeiXdc = await this.web3.eth.getBalance(xdcAddr)
+            if (new BigNumber(balanceWei).isZero() && !new BigNumber(balanceWeiXdc).isZero()) {
+                balanceWei = balanceWeiXdc
+            }
+        } catch (e) { }
+    }
+
+    // Try fallback HTTP RPC web3 (getChainReadWeb3)
+    const readWeb3 = this.getChainReadWeb3()
+    if (readWeb3) {
+        try {
+            balanceFromReadWeb3 = await readWeb3.eth.getBalance(rpcAddr)
+        } catch (e) { }
+
+        try {
+            const balanceFromReadWeb3Xdc = await readWeb3.eth.getBalance(xdcAddr)
+            if (new BigNumber(balanceFromReadWeb3).isZero() && !new BigNumber(balanceFromReadWeb3Xdc).isZero()) {
+                balanceFromReadWeb3 = balanceFromReadWeb3Xdc
+            }
+        } catch (e) { }
+    }
+
+    // Return the fallback balance if it is non-zero and the wallet provider returned zero
+    if (new BigNumber(balanceWei).isZero() && !new BigNumber(balanceFromReadWeb3).isZero()) {
+        return balanceFromReadWeb3
+    }
+
+    return balanceWei
+}
+
+Vue.prototype.getBalanceSafeCallback = function (account, contextName, callback) {
+    this.getBalanceSafe(account, contextName)
+        .then(balance => {
+            if (callback) {
+                callback(null, balance)
+            }
+        })
+        .catch(err => {
+            if (callback) {
+                callback(err, '0')
+            }
+        })
+}
 Vue.prototype.getVoterLinkPath = (address) => {
     return '/voter/xdc' + toRpcAddress(address).substring(2)
 }
@@ -934,9 +990,29 @@ getConfig().then((config) => {
     // var web3js = new Web3(new Web3.providers.HttpProvider(config.blockchain.internalRpc))
     // Vue.prototype.setupProvider(provider, web3js)
     localStorage.set('configMaster', config)
+
+    // Dynamically set trezor's manifest using config's baseUrl
+    let appUrl = config.baseUrl
+    if (appUrl && appUrl.endsWith('/')) {
+        appUrl = appUrl.slice(0, -1)
+    }
+    TrezorConnect.manifest({
+        email: 'admin@xinfin.network',
+        appUrl: appUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+    })
+
+    let linkerDomain = 'fb.xinfin.network'
+    if (config.baseUrl) {
+        try {
+            linkerDomain = new URL(config.baseUrl).hostname
+        } catch (e) {}
+    } else if (typeof window !== 'undefined') {
+        linkerDomain = window.location.hostname
+    }
+
     Vue.use(VueAnalytics, {
         id: config.GA,
-        linkers: ['master.xinfin.network'],
+        linkers: [linkerDomain],
         router,
         autoTraking: {
             screenView: true
@@ -976,85 +1052,85 @@ Vue.prototype.detectNetwork = async function (provider) {
 
         let wjs
         switch (provider) {
-        case 'connect-wallet': {
-            if (!isValidWalletConnectProjectId(resolveWalletConnectProjectId(chainConfig))) {
-                localStorage.remove('network')
+            case 'connect-wallet': {
+                if (!isValidWalletConnectProjectId(resolveWalletConnectProjectId(chainConfig))) {
+                    localStorage.remove('network')
+                    break
+                }
+                const ewjs = await getWalletConnectProvider(false, chainConfig)
+                if (ewjs.connected) {
+                    ewjs.on('disconnect', (code, reason) => {
+                        console.log('Disconnected!')
+                        localStorage.clearAll()
+                        Object.assign(store.state, Helper.getDefaultState())
+                        router.go({
+                            path: '/'
+                        })
+                    })
+
+                    wjs = new Web3(ewjs)
+                }
                 break
             }
-            const ewjs = await getWalletConnectProvider(false, chainConfig)
-            if (ewjs.connected) {
-                ewjs.on('disconnect', (code, reason) => {
-                    console.log('Disconnected!')
-                    localStorage.clearAll()
-                    Object.assign(store.state, Helper.getDefaultState())
-                    router.go({
-                        path: '/'
-                    })
-                })
-
-                wjs = new Web3(ewjs)
-            }
-            break
-        }
-        case 'metamask':
-            // XDCPay uses window.web3; MetaMask uses window.ethereum
-            if (window.ethereum) {
-                wjs = new Web3(window.ethereum)
-            } else if (window.web3 && window.web3.currentProvider) {
-                wjs = new Web3(window.web3.currentProvider)
-            }
-            break
-        case 'XDCwalletDapp':
-            if (window.web3) {
-                if (window.web3.currentProvider) {
+            case 'metamask':
+                // XDCPay uses window.web3; MetaMask uses window.ethereum
+                if (window.ethereum) {
+                    wjs = new Web3(window.ethereum)
+                } else if (window.web3 && window.web3.currentProvider) {
                     wjs = new Web3(window.web3.currentProvider)
-                } else {
-                    wjs = window.web3
                 }
-            }
-            break
-        case 'xinpay':
-            if (window.XDCWeb3) {
-                if (window.XDCWeb3.currentProvider) {
-                    wjs = new Web3(window.XDCWeb3.currentProvider)
-                } else {
-                    wjs = window.XDCWeb3
+                break
+            case 'XDCwalletDapp':
+                if (window.web3) {
+                    if (window.web3.currentProvider) {
+                        wjs = new Web3(window.web3.currentProvider)
+                    } else {
+                        wjs = window.web3
+                    }
                 }
+                break
+            case 'xinpay':
+                if (window.XDCWeb3) {
+                    if (window.XDCWeb3.currentProvider) {
+                        wjs = new Web3(window.XDCWeb3.currentProvider)
+                    } else {
+                        wjs = window.XDCWeb3
+                    }
+                }
+                break
+            case 'XDCwallet':
+                wjs = new Web3(new HDWalletProvider(
+                    '',
+                    chainConfig.rpc, 0, 1, true))
+                break
+            case 'trezor':
+                wjs = new Web3(new Web3.providers.HttpProvider(chainConfig.rpc))
+                break
+            case 'ledger': {
+                const rpcProvider = new Web3.providers.HttpProvider(chainConfig.rpc)
+                const ledgerProvider = createLedgerWeb3Provider(rpcProvider, {
+                    getAccounts: async () => {
+                        const account = await Vue.prototype.getAccount()
+                        return account ? [account] : []
+                    },
+                    signPersonalMessage: (message) => Vue.prototype.signMessage(message),
+                    prepareTransaction: async (tx) => {
+                        if (!tx.chainId) {
+                            tx.chainId = chainConfig.networkId
+                        }
+                        if (!tx.gas && tx.gasLimit) {
+                            tx.gas = tx.gasLimit
+                        }
+                    },
+                    signTransaction: (tx) => Vue.prototype.signTransaction(tx),
+                    sendSignedTransaction: (tx, signature) =>
+                        Vue.prototype.sendSignedTransaction(tx, signature)
+                })
+                wjs = new Web3(ledgerProvider)
+                break
             }
-            break
-        case 'XDCwallet':
-            wjs = new Web3(new HDWalletProvider(
-                '',
-                chainConfig.rpc, 0, 1, true))
-            break
-        case 'trezor':
-            wjs = new Web3(new Web3.providers.HttpProvider(chainConfig.rpc))
-            break
-        case 'ledger': {
-            const rpcProvider = new Web3.providers.HttpProvider(chainConfig.rpc)
-            const ledgerProvider = createLedgerWeb3Provider(rpcProvider, {
-                getAccounts: async () => {
-                    const account = await Vue.prototype.getAccount()
-                    return account ? [account] : []
-                },
-                signPersonalMessage: (message) => Vue.prototype.signMessage(message),
-                prepareTransaction: async (tx) => {
-                    if (!tx.chainId) {
-                        tx.chainId = chainConfig.networkId
-                    }
-                    if (!tx.gas && tx.gasLimit) {
-                        tx.gas = tx.gasLimit
-                    }
-                },
-                signTransaction: (tx) => Vue.prototype.signTransaction(tx),
-                sendSignedTransaction: (tx, signature) =>
-                    Vue.prototype.sendSignedTransaction(tx, signature)
-            })
-            wjs = new Web3(ledgerProvider)
-            break
-        }
-        default:
-            break
+            default:
+                break
         }
 
         if (wjs) {
@@ -1359,32 +1435,32 @@ Vue.prototype.signMessage = async function (message) {
         const provider = Vue.prototype.NetworkProvider || localStorage.get('network')
         let result
         switch (provider) {
-        case 'ledger':
-            await ensureLedgerEth(path)
-            const signature = await Vue.prototype.appEth.signPersonalMessage(
-                path,
-                Buffer.from(message).toString('hex')
-            )
-            const r = toHexBuffer(signature.r)
-            const s = toHexBuffer(signature.s)
-            let v = signature.v
-            if (typeof v === 'string') {
-                v = parseInt(v, 16)
-            }
-            if (v < 27) {
-                v += 27
-            }
-            result = ethUtils.toRpcSig(v, r, s)
-            break
-        case 'trezor':
-            const sig = await TrezorConnect.ethereumSignMessage({
-                path,
-                message
-            })
-            result = '0x' + sig.payload.signature || ''
-            break
-        default:
-            break
+            case 'ledger':
+                await ensureLedgerEth(path)
+                const signature = await Vue.prototype.appEth.signPersonalMessage(
+                    path,
+                    Buffer.from(message).toString('hex')
+                )
+                const r = toHexBuffer(signature.r)
+                const s = toHexBuffer(signature.s)
+                let v = signature.v
+                if (typeof v === 'string') {
+                    v = parseInt(v, 16)
+                }
+                if (v < 27) {
+                    v += 27
+                }
+                result = ethUtils.toRpcSig(v, r, s)
+                break
+            case 'trezor':
+                const sig = await TrezorConnect.ethereumSignMessage({
+                    path,
+                    message
+                })
+                result = '0x' + sig.payload.signature || ''
+                break
+            default:
+                break
         }
         return result
     } catch (error) {
