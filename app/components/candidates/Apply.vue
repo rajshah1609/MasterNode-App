@@ -340,7 +340,7 @@ export default {
                     this.coinbaseError = true
                 } else {
                     // Check balance
-                    const balanc = await this.web3.eth.getBalance(this.account)
+                    const balanc = await this.getBalanceSafe(this.account, 'Apply.vue - validate')
                     this.balance = new BigNumber(balanc).div(10 ** 18)
                     const convertedAmount = new BigNumber(this.applyValue)
 
@@ -614,6 +614,34 @@ export default {
                         }
                     }
 
+                    if (!self.gasPrice) {
+                        self.gasPrice = await self.web3.eth.getGasPrice()
+                    }
+                    
+                    let preflightAccount = signerAccount
+                    if (network === 'custom') {
+                        const providerAccounts = await self.web3.eth.getAccounts()
+                        if (providerAccounts && providerAccounts.length) {
+                            preflightAccount = this.toRpcAddress(providerAccounts[0]).toLowerCase()
+                        }
+                    }
+
+                    if (!preflightAccount || preflightAccount === '0x') {
+                        throw new Error('No transaction sender found. Please log in again.')
+                    }
+
+                    const preflightBalanceWei = await self.getBalanceSafe(preflightAccount, 'Apply.vue - preflight')
+                    const conservativeGas = self.chainConfig.gas
+                    const estimatedPreflightFee = new BigNumber(conservativeGas).multipliedBy(self.gasPrice)
+
+                    if (new BigNumber(preflightBalanceWei).isLessThan(estimatedPreflightFee)) {
+                        throw new Error(
+                            `Not enough XDC for transaction fee. Sender ${preflightAccount} has ` +
+                            `${new BigNumber(preflightBalanceWei).div(10 ** 18).toString(10)} XDC, ` +
+                            `required fee is approximately ${estimatedPreflightFee.div(10 ** 18).toString(10)} XDC.`
+                        )
+                    }
+
                     formData.append('filename', this.KYC.file, this.KYC.file.name)
                     formData.append('account', signerAccount)
                     formData.append('message', message)
@@ -667,20 +695,8 @@ export default {
 
                         const gas = Math.ceil(Number(estimatedGas) * 1.2)
 
-                        const balanceWei = await self.web3.eth.getBalance(account)
+                        const balanceWei = await self.getBalanceSafe(account, 'Apply.vue - uploadKYC')
                         const estimatedFeeWei = new BigNumber(gas).multipliedBy(self.gasPrice)
-
-                        /* console.log('KYC upload tx debug:', {
-                            network,
-                            signerAccount,
-                            providerAccounts,
-                            txFrom: account,
-                            balance: new BigNumber(balanceWei).div(10 ** 18).toString(10),
-                            gasPrice: self.gasPrice,
-                            estimatedGas,
-                            gas,
-                            estimatedFee: estimatedFeeWei.div(10 ** 18).toString(10)
-                        }) */
 
                         if (new BigNumber(balanceWei).isLessThan(estimatedFeeWei)) {
                             throw new Error(

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog } = require('electron')
 const isOnline = require('is-online')
+const config = require('config')
 
 let win = null
 
@@ -16,7 +17,7 @@ async function createWindow () {
         win.maximize()
 
         // Specify entry point to default entry point of vue.js
-        win.loadURL('https://master.testnet.xinfin.network')
+        win.loadURL(config.get('baseUrl'))
     } else {
         win.maximize()
         return dialog.showMessageBox({

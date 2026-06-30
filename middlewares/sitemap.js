@@ -4,9 +4,13 @@ const db = require('../models/mongodb')
 const _ = require('lodash')
 const apicache = require('apicache')
 const cache = apicache.middleware
+const config = require('config')
 
 router.get('/sitemap.xml', cache('1 day'), async (req, res) => {
-    const domain = 'https://master.xinfin.network'
+    let domain = config.get('baseUrl')
+    if (domain.endsWith('/')) {
+        domain = domain.slice(0, -1)
+    }
     let routes = (await db.Candidate.find()
         .sort({ capacityNumber: -1 })
         .limit(500).lean().exec()).map(c => {
