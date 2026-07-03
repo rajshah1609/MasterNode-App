@@ -154,6 +154,11 @@ router.post('/addKYC', async function (req, res, next) {
 
     let imageFile = req.files.filename
 
+    // Allow only PDF files
+    if (imageFile.mimetype !== 'application/pdf' && !imageFile.name.toLowerCase().endsWith('.pdf')) {
+        return res.status(400).json({ message: 'Only PDF files are allowed' })
+    }
+
     // 10MB validation
     const maxSize = 10 * 1024 * 1024
     if (imageFile.size > maxSize) {
