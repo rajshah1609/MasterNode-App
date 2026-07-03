@@ -842,7 +842,7 @@ Vue.prototype.formatAddressByHdPath = formatAddressByHdPath
 
 Vue.prototype.getBalanceSafe = async function (account, contextName = '') {
     try {
-        const response = await axios.get(`/api/voters/getBalance/${account}`)
+        const response = await axios.get(`/api/voters/getBalance/${account}`, { timeout: 5000 })
         if (response.data && response.data.balance !== undefined) {
             return response.data.balance
         }
@@ -1458,7 +1458,7 @@ Vue.prototype.signMessage = async function (message) {
         const provider = Vue.prototype.NetworkProvider || localStorage.get('network')
         let result
         switch (provider) {
-        case 'ledger':
+        case 'ledger': {
             await ensureLedgerEth(path)
             const signature = await Vue.prototype.appEth.signPersonalMessage(
                 path,
@@ -1475,13 +1475,15 @@ Vue.prototype.signMessage = async function (message) {
             }
             result = ethUtils.toRpcSig(v, r, s)
             break
-        case 'trezor':
+        }
+        case 'trezor': {
             const sig = await TrezorConnect.ethereumSignMessage({
                 path,
                 message
             })
-            result = '0x' + sig.payload.signature || ''
+            result = (sig && sig.payload && sig.payload.signature) ? '0x' + sig.payload.signature : ''
             break
+        }
         default:
             break
         }

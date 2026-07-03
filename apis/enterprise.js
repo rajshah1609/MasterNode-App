@@ -20,7 +20,8 @@ function addFileToXinfinIpfs (buffer, filename, callback) {
     axios.post(IPFS_API_ADD_URL, form, {
         headers: form.getHeaders(),
         maxBodyLength: Infinity,
-        maxContentLength: Infinity
+        maxContentLength: Infinity,
+        timeout: 10000
     }).then((response) => {
         const hash = response.data && response.data.Hash
         if (!hash) {
@@ -79,8 +80,9 @@ router.post('/addKYC', async (req, res) => {
         const apiKey = req.headers['x-api-key']
         const apiTimestamp = req.headers['x-api-timestamp']
         const apiSignature = req.headers['x-api-signature']
+        const apiNonce = req.headers['x-api-nonce']
 
-        if (!apiKey || !apiTimestamp || !apiSignature) {
+        if (!apiKey || !apiTimestamp || !apiSignature || !apiNonce) {
             return unauthorized(res, 'missing_auth_headers')
         }
 
@@ -93,36 +95,24 @@ router.post('/addKYC', async (req, res) => {
             return unauthorized(res, 'timestamp_expired')
         }
 
-        // Fetch enterprise key
-        const enterprise = await db.EnterpriseKey.findOne({ apiKey })
-        if (!enterprise) {
-            return unauthorized(res, 'invalid_api_key')
+        // Check if nonce has already been used to prevent replay
+        const nonceExists = await db.EnterpriseNonce.findOne({ apiKey, nonce: apiNonce })
+        if (nonceExists) {
+            return unauthorized(res, 'nonce_reused')
         }
 
-        // Validate signature
-        // We expect signature to be HMAC SHA256 of "METHOD:PATH:TIMESTAMP"
-        const method = req.method.toUpperCase()
-        const path = req.originalUrl.split('?')[0] // Strip query params just in case
-        const stringToSign = `${method}:${path}:${apiTimestamp}`
-
-        const expectedSignature = crypto
-            .createHmac('sha256', enterprise.apiSecret)
-            .update(stringToSign)
-            .digest('hex')
-
-        if (apiSignature !== expectedSignature) {
-            return unauthorized(res, 'invalid_signature')
-        }
-
-        // Validate file
+        // Validate file presence
         if (!req.files || !req.files.filename) {
             return res.status(400).json({ message: 'No file uploaded' })
         }
 
         const uploadedFile = req.files.filename
 
-        // Allow only PDF files
-        if (uploadedFile.mimetype !== 'application/pdf' && !uploadedFile.name.toLowerCase().endsWith('.pdf')) {
+        // Strict PDF checks: mimetype AND filename AND magic bytes
+        const isPdfMagic = uploadedFile.data && uploadedFile.data.length >= 5 &&
+            uploadedFile.data.toString('ascii', 0, 5) === '%PDF-'
+
+        if (uploadedFile.mimetype !== 'application/pdf' || !uploadedFile.name.toLowerCase().endsWith('.pdf') || !isPdfMagic) {
             return res.status(400).json({ message: 'Only PDF files are allowed' })
         }
 
@@ -132,6 +122,40 @@ router.post('/addKYC', async (req, res) => {
             return res.status(400).json({ message: 'File size should not exceed 10MB' })
         }
 
+        // Fetch enterprise key and select select: false fields (apiSecret)
+        const enterprise = await db.EnterpriseKey.findOne({ apiKey }).select('+apiSecret')
+        if (!enterprise) {
+            return unauthorized(res, 'invalid_api_key')
+        }
+
+        // Hash of file content
+        const fileHash = crypto.createHash('sha256').update(uploadedFile.data).digest('hex')
+
+        // Validate signature
+        // We expect signature to be HMAC SHA256 of "METHOD:PATH:TIMESTAMP:NONCE:FILENAME:FILESIZE:FILEHASH"
+        const method = req.method.toUpperCase()
+        const path = req.originalUrl.split('?')[0] // Strip query params just in case
+        const stringToSign = `${method}:${path}:${apiTimestamp}:${apiNonce}:${uploadedFile.name}:${uploadedFile.size}:${fileHash}`
+
+        const expectedSignature = crypto
+            .createHmac('sha256', enterprise.apiSecret)
+            .update(stringToSign)
+            .digest('hex')
+
+        if (typeof apiSignature !== 'string') {
+            return unauthorized(res, 'invalid_signature')
+        }
+
+        const sigBuf = Buffer.from(apiSignature, 'hex')
+        const expectedBuf = Buffer.from(expectedSignature, 'hex')
+
+        if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+            return unauthorized(res, 'invalid_signature')
+        }
+
+        // Save nonce to prevent future replay
+        await db.EnterpriseNonce.create({ apiKey, nonce: apiNonce })
+
         // Upload to IPFS
         addFileToXinfinIpfs(uploadedFile.data, uploadedFile.name, async (err, ipfsHash) => {
             if (err != null) {
@@ -140,7 +164,6 @@ router.post('/addKYC', async (req, res) => {
             }
 
             let hash = ipfsHash[0].hash
-            console.log(`Enterprise KYC uploaded; hash: ${hash}`)
             res.status(200).json({ hash })
         })
     } catch (err) {

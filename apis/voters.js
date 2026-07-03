@@ -38,12 +38,19 @@ router.get('/getBalance/:address', async (req, res, next) => {
         try {
             balance0x = await web3.eth.getBalance(rpcAddr)
             success = true
-        } catch (e) {}
+        } catch (e) {
+            console.error(`[getBalance] Error for rpcAddr ${rpcAddr}:`, e)
+        }
 
-        try {
-            balanceXdc = await web3.eth.getBalance(xdcAddr)
-            success = true
-        } catch (e) {}
+        const isZeroBalance0x = !balance0x || balance0x === '0' || balance0x === '0x0'
+        if (!success || isZeroBalance0x) {
+            try {
+                balanceXdc = await web3.eth.getBalance(xdcAddr)
+                success = true
+            } catch (e) {
+                console.error(`[getBalance] Error for xdcAddr ${xdcAddr}:`, e)
+            }
+        }
 
         if (!success) {
             return res.status(500).json({ error: 'Failed to fetch balance from RPC' })
