@@ -42,7 +42,7 @@ router.post('/keys', async (req, res) => {
     try {
         const authHeader = req.headers['authorization']
         const expectedToken = config.get('enterpriseMasterToken')
-        
+
         if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
             return unauthorized(res, 'invalid_master_token')
         }
@@ -143,7 +143,6 @@ router.post('/addKYC', async (req, res) => {
             console.log(`Enterprise KYC uploaded; hash: ${hash}`)
             res.status(200).json({ hash })
         })
-
     } catch (err) {
         console.error('Error in /enterprise/addKYC:', err)
         res.status(500).send('Internal Server Error')

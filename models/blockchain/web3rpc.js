@@ -10,7 +10,8 @@ const web3Prc = {
         return web3
     },
     Web3RpcInternal: function () {
-        const internalProvider = new Web3.providers.HttpProvider(config.get('blockchain.internalRpc'))
+        const rpcUrl = (config.has('blockchain.internalRpc') && config.get('blockchain.internalRpc')) ? config.get('blockchain.internalRpc') : config.get('blockchain.rpc')
+        const internalProvider = new Web3.providers.HttpProvider(rpcUrl)
         const web3Internal = new Web3(internalProvider)
         return web3Internal
     }
